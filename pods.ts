@@ -14,7 +14,7 @@ export class Root extends pulumi.ComponentResource {
     {
         super("examples:kubernetes-ts-multicloud:demo-app", name, args, opts);
         const appLabels = {app: name};
-        const deploy = new k8s.core.v1.Pod(name,
+        const pod = new k8s.core.v1.Pod(name,
             {
                 metadata: { labels: appLabels, namespace: args.namespace },
                 spec: {
@@ -50,7 +50,7 @@ export class Dind extends pulumi.ComponentResource {
                 opts: pulumi.ComponentResourceOptions = {}) {
         super("examples:kubernetes-ts-multicloud:demo-app", name, args, opts);
         const appLabels = {app: name};
-        const deploy = new k8s.core.v1.Pod(name,
+        const pod = new k8s.core.v1.Pod(name,
             {
                 metadata: { labels: appLabels, namespace: args.namespace},
                 spec: {
