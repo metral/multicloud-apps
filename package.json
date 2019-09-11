@@ -1,0 +1,13 @@
+{
+    "name": "multicloud-apps",
+    "devDependencies": {
+        "typescript": "^3.0.0",
+        "@types/node": "latest",
+        "@types/which": "latest"
+    },
+    "dependencies": {
+        "@pulumi/kubernetes": "^1.0.0",
+        "@pulumi/pulumi": "^1.0.0",
+        "which": "latest"
+    }
+}

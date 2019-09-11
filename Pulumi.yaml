@@ -1,0 +1,3 @@
+name: multicloud-apps
+description: Deploys Kubernetes apps across AKS, EKS, GKE and a local KinD cluster.
+runtime: nodejs
