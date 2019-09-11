@@ -51,67 +51,65 @@ for (const clusterName of Object.keys(clusters)) {
 }
 
 /*
-// Deploy the psps on each of the clusters, and show-case RBAC &
-// least-privilege on EKS.
-for (const clusterName of Object.keys(clusters)) {
-    const cluster = clusters[clusterName];
+// Deploy Root and DinD pods, and show RBAC & least-privilege on EKS.
+const clusterName = "eks";
+const cluster = clusters[clusterName];
 
-    if (clusterName === "eks") {
-        let namespaceName = "default"
+let namespaceName = "default"
 
-        // Create a role for the `pulumi:dev-group`.
-        let devGroupPspRole = new k8s.rbac.v1.Role(
-            "pulumi-dev-group-psp",
-            {
-                metadata: {
-                    namespace: namespaceName,
-                },
-                rules: [
-                    {
-                        apiGroups: ["", "apps"],
-                        resources: ["pods", "deployments", "replicasets", "persistentvolumeclaims"],
-                        verbs: ["get", "list", "watch", "create", "update", "delete"],
-                    },
-                ],
-            },
-            {
-                provider: cluster.provider,
-            },
-        );
-
-        // Role bind the "pulumi:dev-group" to the k8s role for the default namespace.
-        let devGroupPspRoleBinding = new k8s.rbac.v1.RoleBinding("pulumi-dev-group-psp", {
-            metadata: {
-                namespace: namespaceName,
-            },
-            subjects: [{
-                kind: "Group",
-                name: "pulumi:dev-group",
-            }],
-            roleRef: {
-                kind: "Role",
-                name: devGroupPspRole.metadata.name,
-                apiGroup: "rbac.authorization.k8s.io",
-            },
-        }, {provider: cluster.provider});
-
-        // Create the r00t pod.
-        const root = new pods.Root(`root-${clusterName}`, {
+// Create a role for the `pulumi:dev-group`.
+let devGroupPspRole = new k8s.rbac.v1.Role(
+    "pulumi-dev-group-psp",
+    {
+        metadata: {
             namespace: namespaceName,
-            provider: cluster.provider,
-            // provider: bmProvider,
         },
-            {dependsOn: devGroupPspRoleBinding},
-        );
+        rules: [
+            {
+                apiGroups: ["", "apps"],
+                resources: ["pods", "deployments", "replicasets", "persistentvolumeclaims"],
+                verbs: ["get", "list", "watch", "create", "update", "delete"],
+            },
+        ],
+    },
+    {
+        provider: cluster.provider,
+    },
+);
 
-        // Create docker-in-docker pod.
-        const dind = new pods.Dind(`dind-${clusterName}`, {
-            namespace: namespaceName,
-            provider: cluster.provider,
-            // provider: bmProvider,
-        },
-            {dependsOn: devGroupPspRoleBinding},
-        );
-    }
-}
+// Role bind the "pulumi:dev-group" to the k8s role for the default namespace.
+let devGroupPspRoleBinding = new k8s.rbac.v1.RoleBinding("pulumi-dev-group-psp", {
+    metadata: {
+        namespace: namespaceName,
+    },
+    subjects: [{
+        kind: "Group",
+        name: "pulumi:dev-group",
+    }],
+    roleRef: {
+        kind: "Role",
+        name: devGroupPspRole.metadata.name,
+        apiGroup: "rbac.authorization.k8s.io",
+    },
+}, {provider: cluster.provider});
+
+// Create the r00t pod.
+const root = new pods.Root(`root-${clusterName}`,
+    {
+        namespace: namespaceName,
+        provider: cluster.provider,
+        // provider: bmProvider,
+    },
+    {dependsOn: devGroupPspRoleBinding},
+);
+
+// Create docker-in-docker pod.
+const dind = new pods.Dind(`dind-${clusterName}`,
+    {
+        namespace: namespaceName,
+        provider: cluster.provider,
+        // provider: bmProvider,
+    },
+    {dependsOn: devGroupPspRoleBinding},
+);
 */
