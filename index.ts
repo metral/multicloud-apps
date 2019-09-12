@@ -41,6 +41,7 @@ for (const clusterName of Object.keys(clusters)) {
     // Set the default PodSecurityPolicies.
     const podSecurityPolicies = new psp.PodSecurityPolicy(`${clusterName}`, cluster.kubeconfig);
 
+    /*
     const instance = new app.DemoApp(clusterName, {
         provider: cluster.provider,
         staticAppIp: cluster.staticAppIp,
@@ -48,6 +49,7 @@ for (const clusterName of Object.keys(clusters)) {
 
     let instanceUrl: appUrl = {name: clusterName, url: instance.appUrl};
     appUrls = appUrls.concat(instanceUrl);
+    */
 }
 
 /*

@@ -29,11 +29,11 @@ interface PodSecurityPolicyInputs {
 }
 
 // Applies the user required pod security policies from it's manifest.
-function applyPodSecurityPolicyYaml(allPspTexts: string[], kubeconfig: string) {
-    for (const pspText of allPspTexts) {
+function applyPodSecurityPolicyYaml(yamlManifests: YamlManifest[], kubeconfig: string) {
+    for (const manifest of yamlManifests) {
         // Compute the required YAML and dump it to a file.
         const tmpYaml = tmp.fileSync();
-        fs.writeFileSync(tmpYaml.fd, pspText);
+        fs.writeFileSync(tmpYaml.fd, manifest.text);
 
         kubectl(`apply -f ${tmpYaml.name}`, kubeconfig);
     }
@@ -62,10 +62,10 @@ function aggregateRequiredPsps(inputs: PodSecurityPolicyInputs): string[] {
 }
 
 // Restore the cluster's pod security policies to the required cloud and cluster defaults.
-function restoreRequiredPsps(name: string, allPspTexts: string[], inputs: PodSecurityPolicyInputs): PodSecurityPolicyInputs{
-    for (const pspText of allPspTexts) {
+function restoreRequiredPsps(name: string, yamlManifests: YamlManifest[], inputs: PodSecurityPolicyInputs): PodSecurityPolicyInputs{
+    for (const manifest of yamlManifests) {
         // Set the user-required, and cloud provider required pod security policies.
-        let psp = jsyaml.safeLoadAll(pspText).filter(o => o.kind === "PodSecurityPolicy")[0];
+        let psp = jsyaml.safeLoadAll(manifest.text).filter(o => o.kind === "PodSecurityPolicy")[0];
         inputs.requiredPsps.push(`podsecuritypolicy.extensions/${psp.metadata.name}`);
     }
     inputs.requiredCloudPsps = requiredCloudPsps[name];
@@ -81,7 +81,7 @@ function restoreRequiredPsps(name: string, allPspTexts: string[], inputs: PodSec
     // Note: psp design requires that we create psps before deleting any.
 
     // Create our required psps in the cluster.
-    applyPodSecurityPolicyYaml(allPspTexts, inputs.kubeconfig);
+    applyPodSecurityPolicyYaml(yamlManifests, inputs.kubeconfig);
 
     // Delete any unnecessary psps.
     for (const pspName of pspsToDelete) {
@@ -92,6 +92,13 @@ function restoreRequiredPsps(name: string, allPspTexts: string[], inputs: PodSec
 
     return inputs;
 }
+
+// YamlManifest holds the necessary information to work with a k8s YAML manifest.
+interface YamlManifest {
+    filepath: string;
+    text: string;
+}
+
 /*
  * PodSecurityPolicy manages the configuration of pod security policies for a
  * given cloud provider cluster.
@@ -110,18 +117,20 @@ export class PodSecurityPolicy extends pulumi.dynamic.Resource {
             throw new Error("Could not set PodSecurityPolicy options: kubectl is missing.");
         }
 
-        // Read the YAML file for the psp.
-        const allPspTexts: string[] = [];
-        const yamlPath = path.join(__dirname, "psp", "restrictive.yaml");
-        const yamlText = fs.readFileSync(yamlPath).toString();
-        allPspTexts.push(yamlText);
+        // Read the YAML manifests for the psps we want to add.
+        const yamlManifests: YamlManifest[] = [];
+        yamlManifests.push(<YamlManifest>{
+            filepath: path.join(__dirname, "psp", "restrictive.yaml"),
+            text: fs.readFileSync(path.join(__dirname, "psp", "restrictive.yaml")).toString(),
+        });
 
         // Replace eks privileged PSP with default that is not ALLOW all for
         // all, only kube-system service accounts.
         if (name === "eks"){
-            const privYamlPath = path.join(__dirname, "psp", "privileged.yaml");
-            const privYamlText = fs.readFileSync(privYamlPath).toString();
-            allPspTexts.push(privYamlText);
+            yamlManifests.push(<YamlManifest>{
+                filepath: path.join(__dirname, "psp", "privileged.yaml"),
+                text: fs.readFileSync(path.join(__dirname, "psp", "privileged.yaml")).toString(),
+            });
         }
 
         // Create a dynamic provider for a CRUD workflow on cluster PSPs.
@@ -129,7 +138,7 @@ export class PodSecurityPolicy extends pulumi.dynamic.Resource {
             // check: (state: any, inputs: any) => Promise.resolve({inputs: inputs, failedChecks: []}),
             diff: (id: pulumi.ID, state: PodSecurityPolicyInputs, inputs: PodSecurityPolicyInputs) => {
                 // Get the current psps in the cloud provider.
-                let currentPsps = getAllPodSecurityPolicyNames(inputs.kubeconfig);
+                let currentPsps = getAllPodSecurityPolicyNames(state.kubeconfig);
 
                 // Get the required, default psps that must be installed in the cluster.
                 let requiredPsps = aggregateRequiredPsps(state);
@@ -144,16 +153,18 @@ export class PodSecurityPolicy extends pulumi.dynamic.Resource {
             create: (inputs: PodSecurityPolicyInputs) => {
                 inputs.requiredPsps = [];
                 inputs.requiredCloudPsps = [];
-                inputs = restoreRequiredPsps(name, allPspTexts, inputs);
+                inputs = restoreRequiredPsps(name, yamlManifests, inputs);
                 return Promise.resolve({id: crypto.randomBytes(8).toString("hex"), outs: inputs});
             },
             // read: (id: pulumi.ID, state: PodSecurityPolicyInputs) => Promise.resolve({id: id, props: state}),
             update: (id: pulumi.ID, state: PodSecurityPolicyInputs, inputs: PodSecurityPolicyInputs) => {
-                inputs = restoreRequiredPsps(name, allPspTexts, inputs);
+                inputs = restoreRequiredPsps(name, yamlManifests, state);
                 return Promise.resolve({outs: inputs});
             },
             delete: (id: pulumi.ID, state: PodSecurityPolicyInputs) => {
-                kubectl(`delete -f ${yamlPath}`, state.kubeconfig);
+                for (const manifest of yamlManifests) {
+                    kubectl(`delete -f ${manifest.filepath}`, state.kubeconfig);
+                }
                 return Promise.resolve();
             },
         };
